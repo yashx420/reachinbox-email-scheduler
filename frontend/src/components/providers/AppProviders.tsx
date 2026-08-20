@@ -5,7 +5,19 @@ import { Toaster } from 'react-hot-toast';
 import type { ReactNode } from 'react';
 import { AuthProvider } from './AuthProvider';
 
-export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+const RAW_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+
+/**
+ * A real Google Web client id always ends in `.apps.googleusercontent.com`.
+ * The value shipped in `.env.local.example` looks close enough to pass a
+ * truthiness check, which used to render a live Google button that failed with
+ * `Error 401: invalid_client` only after the popup opened. Rejecting it here
+ * surfaces the setup hint instead.
+ */
+export const GOOGLE_CLIENT_ID =
+  RAW_CLIENT_ID.endsWith('.apps.googleusercontent.com') && !RAW_CLIENT_ID.startsWith('your-client-id')
+    ? RAW_CLIENT_ID
+    : '';
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (

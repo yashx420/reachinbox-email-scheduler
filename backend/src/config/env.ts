@@ -64,6 +64,18 @@ export interface SmtpAccountConfig {
   maxEmailsPerHour?: number;
 }
 
+/**
+ * Accepts only a real Google Web client id. The placeholder in `.env.example`
+ * is treated as "unset" so the API reports `configured: false` rather than
+ * letting the browser fail with `invalid_client` at the popup.
+ */
+function googleClientId(key: string): string {
+  const value = raw(key);
+  if (!value) return '';
+  if (value.startsWith('your-client-id') || !value.endsWith('.apps.googleusercontent.com')) return '';
+  return value;
+}
+
 function smtpAccounts(key: string): SmtpAccountConfig[] {
   const value = raw(key);
   if (!value) return [];
@@ -110,7 +122,7 @@ export const env = {
   queuePrefix: str('QUEUE_PREFIX', 'reachinbox'),
 
   auth: {
-    googleClientId: str('GOOGLE_CLIENT_ID', ''),
+    googleClientId: googleClientId('GOOGLE_CLIENT_ID'),
     jwtSecret: isProduction
       ? requiredStr('JWT_SECRET', 'Set a long random string; it signs dashboard sessions.')
       : str('JWT_SECRET', 'insecure-development-secret'),
