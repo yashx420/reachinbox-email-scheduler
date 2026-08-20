@@ -1,0 +1,75 @@
+# Infrastructure for the ReachInbox email scheduler.
+#
+#   docker compose up -d       -> starts Postgres + Redis only (recommended dev setup)
+#   docker compose --profile app up -d --build   -> also builds/runs the API, worker and web app
+#
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reachinbox-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-reachinbox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reachinbox}
+      POSTGRES_DB: ${POSTGRES_DB:-reachinbox}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reachinbox} -d ${POSTGRES_DB:-reachinbox}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: reachinbox-redis
+    restart: unless-stopped
+    # appendonly = BullMQ's delayed jobs survive a Redis restart, not just an API restart.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    profiles: ["app"]
+    build:
+      context: ./backend
+    container_name: reachinbox-api
+    restart: unless-stopped
+    command: ["node", "dist/server.js"]
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-reachinbox}:${POSTGRES_PASSWORD:-reachinbox}@postgres:5432/${POSTGRES_DB:-reachinbox}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: ./backend
+    container_name: reachinbox-worker
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-reachinbox}:${POSTGRES_PASSWORD:-reachinbox}@postgres:5432/${POSTGRES_DB:-reachinbox}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:
