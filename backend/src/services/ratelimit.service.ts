@@ -132,14 +132,23 @@ export async function consumeSendSlot(
  * Gives a reserved slot back when the send did not actually happen (SMTP
  * error, sender lookup failure). Without this a burst of transient failures
  * would silently eat the hour's quota.
+ *
+ * `senderLimit` must be the same value that was passed to `consumeSendSlot`,
+ * otherwise a sender whose row overrides a disabled global default would have
+ * its counter incremented but never refunded.
  */
-export async function refundSendSlot(senderId: string, windowStart: number): Promise<void> {
+export async function refundSendSlot(
+  senderId: string,
+  windowStart: number,
+  senderLimit?: number | null,
+): Promise<void> {
   const redis = getRedis();
+  const senderMax = senderLimit ?? env.rateLimit.perSenderPerHour;
   try {
     if (env.rateLimit.globalPerHour > 0) {
       await redis.eval(REFUND_SCRIPT, 1, globalKey(windowStart));
     }
-    if (env.rateLimit.perSenderPerHour > 0) {
+    if (senderMax > 0) {
       await redis.eval(REFUND_SCRIPT, 1, senderKey(senderId, windowStart));
     }
   } catch (err) {

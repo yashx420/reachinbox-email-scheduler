@@ -189,7 +189,7 @@ export async function processEmailJob(
   const waitMs = sendAt - Date.now();
 
   if (waitMs > maxInlineWaitMs()) {
-    await refundSendSlot(sender.id, decision.windowStart);
+    await refundSendSlot(sender.id, decision.windowStart, sender.max_emails_per_hour);
     log.debug('Pacing wait too long — returning job to the queue', {
       emailJobId: row.id,
       runAt: new Date(sendAt).toISOString(),
@@ -230,7 +230,7 @@ export async function processEmailJob(
     return { status: 'sent', emailJobId: row.id, previewUrl: result.previewUrl };
   } catch (err) {
     // The email never left, so hand the hourly slot back before retrying.
-    await refundSendSlot(sender.id, decision.windowStart);
+    await refundSendSlot(sender.id, decision.windowStart, sender.max_emails_per_hour);
 
     const message = describeError(err);
     const outcome = await recordFailure(row, message);
