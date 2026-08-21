@@ -16,12 +16,21 @@ interface ModalProps {
 export function Modal({ open, onClose, title, description, children, footer, className }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // `onClose` is a fresh function on every render of the caller (e.g. a new
+  // closure each keystroke while a controlled input inside the modal
+  // updates state). Reading it through a ref, rather than depending on it
+  // directly, keeps this effect scoped to real open/close transitions —
+  // depending on `onClose` itself reran it on every keystroke, and
+  // `panelRef.current?.focus()` was yanking focus off the input each time.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   // Escape to close, and keep the page behind from scrolling while open.
   useEffect(() => {
     if (!open) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
 
     const previousOverflow = document.body.style.overflow;
@@ -33,7 +42,7 @@ export function Modal({ open, onClose, title, description, children, footer, cla
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
